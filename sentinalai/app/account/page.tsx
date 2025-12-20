@@ -106,7 +106,7 @@ export default function AccountPage() {
               rows={5}
               className="w-full bg-[#1c1c1c] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#3ECF8E]/50 transition-colors resize-none"
             />
-            <p className="text-xs text-gray-500 mt-2">This prompt guides how Sento creates content for your brand.</p>
+            <p className="text-xs text-gray-500 mt-2">This prompt guides how Sentient creates content for your brand.</p>
           </div>
 
           <button

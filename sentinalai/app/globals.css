@@ -81,6 +81,58 @@
   }
 }
 
+@keyframes slideInFromBottom
+{
+  from
+  {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to
+  {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft
+{
+  from
+  {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to
+  {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes gradientShift
+{
+  0%, 100%
+  {
+    background-position: 0% 50%;
+  }
+  50%
+  {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes float
+{
+  0%, 100%
+  {
+    transform: translateY(0);
+  }
+  50%
+  {
+    transform: translateY(-4px);
+  }
+}
+
 /* NEW: spotlight animation */
 @keyframes spotlight
 {
@@ -104,6 +156,34 @@
 .animate-fadeIn
 {
   animation: fadeIn 1s ease-in-out;
+}
+
+.animate-in
+{
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+.slide-in-from-bottom-4
+{
+  animation-name: slideInFromBottom;
+}
+
+.slide-in-from-left-4
+{
+  animation-name: slideInFromLeft;
+}
+
+.animate-gradient
+{
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}
+
+.animate-float
+{
+  animation: float 3s ease-in-out infinite;
 }
 
 /* spotlight helper class to use the animation token */

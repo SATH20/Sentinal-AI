@@ -26,7 +26,7 @@ export default function ChatSidebar({ isOpen, onToggle }: ChatSidebarProps) {
 
       {/* Logo */}
       <div className="p-4 border-b border-white/10">
-        <a href="/" className={`text-xl font-bold tracking-tight ${!isOpen && 'hidden'}`}>Sento</a>
+        <a href="/" className={`text-xl font-bold tracking-tight ${!isOpen && 'hidden'}`}>Sentient</a>
         {!isOpen && <a href="/" className="text-xl font-bold">S</a>}
       </div>
 

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { generateContent, approveContent, useSessionId, generateSessionId, GenerateResponse } from '../../lib/api/agent';
+import { getStoredUser, clearStoredUser, User } from '../../lib/api/auth';
 import { EncryptedText } from '../ui/encrypted-text';
-import { Send, Plus, ChevronDown, Check, ImageIcon, Film, CheckCircle, X, RefreshCw, ThumbsUp, ThumbsDown, Play } from 'lucide-react';
+import { Send, Plus, ChevronDown, Check, ImageIcon, Film, CheckCircle, X, RefreshCw, ThumbsUp, ThumbsDown, Play, LogOut, User as UserIcon } from 'lucide-react';
 import { FacebookIcon, InstagramIcon } from '../icons/SocialIcons';
 
 interface ChatAreaProps {
@@ -27,6 +29,11 @@ type ContentPreview = {
 type ViewState = 'welcome' | 'loading' | 'preview' | 'publishing' | 'success' | 'error';
 
 export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
+  const router = useRouter();
+  
+  // User state
+  const [user, setUser] = useState<User | null>(null);
+  
   // Input state
   const [message, setMessage] = useState('');
   const [contentType, setContentType] = useState<'Post' | 'Reel'>('Post');
@@ -47,7 +54,21 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const username = 'Khushal Agarwal';
+  // Load user on mount
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    clearStoredUser();
+    setUser(null);
+    router.push('/auth');
+  };
+
+  const username = user?.name || 'Guest';
 
   // Get workflow steps based on content type
   const getWorkflowSteps = (type: 'Post' | 'Reel'): WorkflowStep[] => {
@@ -68,12 +89,30 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
     ];
   };
 
-  // Handle image upload
+  // Handle image upload with size validation
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image too large. Please select an image under 10MB.');
+        return;
+      }
+      
       const reader = new FileReader();
-      reader.onload = (e) => setSelectedImage(e.target?.result as string);
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        console.log('Image loaded:', {
+          type: file.type,
+          size: file.size,
+          dataUrlLength: result?.length
+        });
+        setSelectedImage(result);
+      };
+      reader.onerror = (e) => {
+        console.error('Error reading file:', e);
+        alert('Error reading image file. Please try again.');
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -105,6 +144,15 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
   const handleSend = async () => {
     if (!message.trim() && !selectedImage) return;
 
+    // Capture current values before clearing
+    const currentMessage = message || 'Generate content based on the reference image';
+    const currentImage = selectedImage;
+    
+    // Clear inputs IMMEDIATELY so they don't show during loading
+    setMessage('');
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
     // Reset state
     setError(null);
     setContentPreview(null);
@@ -122,18 +170,28 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       setSessionId(session_id);
     }
 
+    // Log what we're sending
+    console.log('Sending request:', {
+      message: currentMessage,
+      contentType,
+      hasImage: !!currentImage,
+      imageLength: currentImage?.length
+    });
+
     // Start step progression animation
     const stepPromise = progressSteps(steps, () => {});
 
     // Make API call
     try {
       const response = await generateContent({
-        user_id: 'user_1',
+        user_id: user?.user_id || 'guest',
         session_id,
-        message,
+        message: currentMessage,
         content_type: contentType,
-        image_data: selectedImage || undefined,
+        image_data: currentImage || undefined,
       });
+
+      console.log('API Response:', response);
 
       // Wait for animation to catch up
       await stepPromise;
@@ -156,11 +214,6 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       setError(err?.message || 'Network error');
       setViewState('error');
     }
-
-    // Clear inputs
-    setMessage('');
-    setSelectedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Handle approval
@@ -265,6 +318,52 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
 
   return (
     <main className={`flex-1 flex flex-col h-screen overflow-hidden ${sidebarOpen ? '' : ''}`}>
+      {/* Top Bar with User Info */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-semibold text-white">Sentinal<span className="text-[#3ECF8E]">AI</span></span>
+        </div>
+        
+        {user ? (
+          <div className="flex items-center gap-3">
+            {/* Connection Status */}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs ${user.is_connected ? 'bg-[#3ECF8E]/10 text-[#3ECF8E]' : 'bg-yellow-500/10 text-yellow-500'}`}>
+              <InstagramIcon className="w-3.5 h-3.5" />
+              <span>{user.is_connected ? 'Connected' : 'Not Connected'}</span>
+            </div>
+            
+            {/* User Profile */}
+            <div className="flex items-center gap-2">
+              {user.profile_picture ? (
+                <img src={user.profile_picture} alt={user.name} className="w-8 h-8 rounded-full" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#232323] flex items-center justify-center">
+                  <UserIcon size={16} className="text-gray-400" />
+                </div>
+              )}
+              <span className="text-sm text-gray-300 hidden sm:block">{user.name}</span>
+            </div>
+            
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+              title="Logout"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => router.push('/auth')}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1877F2] text-white text-sm rounded-lg hover:bg-[#166FE5] transition-colors"
+          >
+            <FacebookIcon className="w-4 h-4" />
+            <span>Connect Instagram</span>
+          </button>
+        )}
+      </div>
+      
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="min-h-full flex items-center justify-center">
@@ -275,20 +374,51 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       {/* Input Area */}
       <div className="p-6 pb-8">
         <div className="max-w-3xl mx-auto">
-          {/* Image Preview */}
+          {/* Reference Image Preview - Animated Card */}
           {selectedImage && (
-            <div className="mb-4 relative inline-block">
-              <img 
-                src={selectedImage} 
-                alt="Reference" 
-                className="max-w-xs max-h-32 rounded-lg border border-white/20"
-              />
-              <button
-                onClick={removeImage}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-              >
-                <X size={14} />
-              </button>
+            <div className="mb-4 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="inline-flex items-start gap-3 p-3 bg-gradient-to-r from-[#1c1c1c] to-[#232323] rounded-2xl border border-white/10 shadow-xl backdrop-blur-sm">
+                {/* Image Container with Glow Effect */}
+                <div className="relative group">
+                  {/* Animated gradient border */}
+                  <div className="absolute -inset-1 bg-gradient-to-r from-[#3ECF8E] via-purple-500 to-pink-500 rounded-xl opacity-50 group-hover:opacity-75 blur-sm transition-opacity duration-300 animate-pulse"></div>
+                  
+                  {/* Image */}
+                  <div className="relative">
+                    <img 
+                      src={selectedImage} 
+                      alt="Reference" 
+                      className="w-24 h-24 object-cover rounded-xl border-2 border-[#232323]"
+                    />
+                    {/* Overlay on hover */}
+                    <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                      <ImageIcon size={20} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Info Section */}
+                <div className="flex flex-col justify-between py-1 min-w-[140px]">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-[#3ECF8E] animate-pulse"></div>
+                      <span className="text-xs font-medium text-[#3ECF8E]">Reference Image</span>
+                    </div>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      AI will analyze this image and match its style
+                    </p>
+                  </div>
+                  
+                  {/* Remove Button */}
+                  <button
+                    onClick={removeImage}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 transition-colors group/btn"
+                  >
+                    <X size={12} className="group-hover/btn:rotate-90 transition-transform duration-200" />
+                    <span>Remove</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           

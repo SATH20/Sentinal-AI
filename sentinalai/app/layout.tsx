@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sento - Your Social Media AI Agent",
+  title: "Sentient - Your Social Media AI Agent",
   description: "AI Agents That Run Your Social Media",
 };
 

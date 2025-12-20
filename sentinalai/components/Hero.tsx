@@ -62,7 +62,7 @@ function HeroVisual() {
           </div>
         </div>
         <div className="space-y-2 text-gray-500">
-          <p className="text-[#3ECF8E] font-bold mb-2">// Sento Output</p>
+          <p className="text-[#3ECF8E] font-bold mb-2">// Sentient Output</p>
           <div className="space-y-2">
             <div className="flex items-center gap-2"><Check size={14} className="text-[#3ECF8E]"/> <span>Generating 5 Instagram Reels scripts...</span></div>
             <div className="flex items-center gap-2"><Check size={14} className="text-[#3ECF8E]"/> <span>Generating a catchy caption...</span></div>

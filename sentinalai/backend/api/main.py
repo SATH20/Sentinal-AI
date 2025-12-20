@@ -16,6 +16,9 @@ from botocore.config import Config
 from google import genai
 from google.genai import types
 
+# Import auth module
+from api.auth import router as auth_router, get_user_credentials
+
 # Initialize Gemini client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
@@ -43,6 +46,9 @@ def get_r2_client():
     return r2_client
 
 app = FastAPI(title="SentinelAI Backend")
+
+# Include auth router
+app.include_router(auth_router)
 
 # Add CORS middleware
 app.add_middleware(
@@ -127,13 +133,36 @@ OUTPUT: Return ONLY the enhanced prompt (3-5 detailed sentences). No explanation
         # Add reference image if provided
         if image_data:
             try:
+                # Handle data URL format
                 if ',' in image_data:
-                    image_data = image_data.split(',')[1]
-                image_bytes = base64.b64decode(image_data)
-                parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
-                parts.append(types.Part.from_text(text="Analyze this reference image and incorporate its visual style, colors, lighting, and composition into the enhanced prompt."))
+                    # Extract mime type and base64 data
+                    header, base64_data = image_data.split(',', 1)
+                    # Determine mime type from header
+                    if 'png' in header.lower():
+                        mime_type = "image/png"
+                    elif 'gif' in header.lower():
+                        mime_type = "image/gif"
+                    elif 'webp' in header.lower():
+                        mime_type = "image/webp"
+                    else:
+                        mime_type = "image/jpeg"
+                else:
+                    base64_data = image_data
+                    mime_type = "image/jpeg"
+                
+                image_bytes = base64.b64decode(base64_data)
+                print(f"Reference image: {len(image_bytes)} bytes, mime: {mime_type}")
+                
+                # Only add if image is valid size (at least 100 bytes)
+                if len(image_bytes) > 100:
+                    parts.append(types.Part.from_bytes(data=image_bytes, mime_type=mime_type))
+                    parts.append(types.Part.from_text(text="Analyze this reference image and incorporate its visual style, colors, lighting, and composition into the enhanced prompt."))
+                else:
+                    print("Reference image too small, skipping")
             except Exception as e:
                 print(f"Error processing reference image: {e}")
+                import traceback
+                traceback.print_exc()
         
         response = client.models.generate_content(
             model="gemini-2.0-flash",
@@ -461,14 +490,28 @@ async def upload_to_r2(media_data: str, content_type: str) -> str:
 # =====================================================
 # STEP 5: PUBLISH TO INSTAGRAM
 # =====================================================
-async def publish_to_instagram(media_url: str, caption: str, hashtags: str, content_type: str) -> dict:
-    """Publish the content to Instagram."""
+async def publish_to_instagram(media_url: str, caption: str, hashtags: str, content_type: str, user_id: str = None) -> dict:
+    """Publish the content to Instagram using user's credentials."""
     
-    ig_business_id = os.environ.get("INSTAGRAM_BUSINESS_ID")
-    access_token = os.environ.get("INSTAGRAM_ACCESS_TOKEN")
+    # Try to get user-specific credentials first
+    ig_business_id = None
+    access_token = None
+    
+    if user_id:
+        user_creds = get_user_credentials(user_id)
+        if user_creds:
+            ig_business_id = user_creds.get("instagram_business_id")
+            access_token = user_creds.get("access_token")
+            print(f"Using credentials for user: {user_id}")
+    
+    # Fallback to environment variables (for testing)
+    if not ig_business_id:
+        ig_business_id = os.environ.get("INSTAGRAM_BUSINESS_ID")
+    if not access_token:
+        access_token = os.environ.get("INSTAGRAM_ACCESS_TOKEN")
     
     if not ig_business_id or not access_token:
-        return {"status": "error", "message": "Instagram credentials not configured"}
+        return {"status": "error", "message": "Instagram not connected. Please sign in with Facebook first."}
     
     # If media is base64, upload to R2 first
     if media_url.startswith("data:"):
@@ -658,12 +701,13 @@ async def approve_content(req: ApprovalRequest) -> PublishResponse:
             del generated_content_store[req.content_id]
             return PublishResponse(status="denied", error="Content denied. Please regenerate with a new prompt.")
         
-        # User approved - publish to Instagram
+        # User approved - publish to Instagram using their credentials
         result = await publish_to_instagram(
             media_url=content["media_url"],
             caption=content["caption"],
             hashtags=content["hashtags"],
-            content_type=content["content_type"]
+            content_type=content["content_type"],
+            user_id=content.get("user_id")  # Pass user_id for their credentials
         )
         
         del generated_content_store[req.content_id]
