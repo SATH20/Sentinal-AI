@@ -1,7 +1,7 @@
 // lib/api/agent.ts
 import { useRef } from 'react';
 
-const API_BASE = 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export interface GenerateRequest {
   user_id: string;
