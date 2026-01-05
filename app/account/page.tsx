@@ -98,16 +98,7 @@ export default function AccountPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">System Prompt</label>
-            <textarea
-              value={formData.systemPrompt}
-              onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
-              rows={5}
-              className="w-full bg-[#1c1c1c] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#3ECF8E]/50 transition-colors resize-none"
-            />
-            <p className="text-xs text-gray-500 mt-2">This prompt guides how Sento creates content for your brand.</p>
-          </div>
+          
 
           <button
             type="submit"
