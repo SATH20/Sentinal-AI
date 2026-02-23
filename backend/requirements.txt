@@ -4,4 +4,8 @@ boto3
 requests
 python-dotenv
 fastapi
-uvicorn
+uvicorn[standard]
+supabase
+pytrends
+pandas
+httpx
