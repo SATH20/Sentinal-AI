@@ -1,8 +1,7 @@
 'use client';
 // Premium SaaS sidebar with subtle live animations
 
-import { ChevronLeft, ChevronRight, LogOut, Settings, BookOpen, User } from 'lucide-react';
-import { FacebookIcon, InstagramIcon } from '../icons/SocialIcons';
+import { ChevronLeft, ChevronRight, LogOut, Settings, BookOpen, User, Sparkles, LayoutDashboard, Globe, Zap } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 
 interface ChatSidebarProps {
@@ -48,14 +47,18 @@ export default function ChatSidebar({ isOpen, onToggle }: ChatSidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        <SidebarButton icon={Settings} label="Configure Content" isOpen={isOpen} onClick={() => {}} active={pathname === '/' || pathname === ''} />
+        <SidebarButton icon={Sparkles} label="Brand Manager" isOpen={isOpen} onClick={() => router.push('/brand')} active={pathname === '/brand'} />
+        <SidebarButton icon={Zap} label="Automate" isOpen={isOpen} onClick={() => router.push('/automate')} active={pathname === '/automate'} />
+        <SidebarButton icon={LayoutDashboard} label="Analytics" isOpen={isOpen} onClick={() => router.push('/analytics')} active={pathname === '/analytics'} />
+        <SidebarButton icon={Globe} label="Web Architect" isOpen={isOpen} onClick={() => router.push('/websites')} active={pathname === '/websites'} />
+        
+        <div className="h-px bg-white/10 my-4"></div>
         <SidebarButton icon={BookOpen} label="Prompt Library" isOpen={isOpen} onClick={() => router.push('/library')} active={pathname?.startsWith('/library') ?? false} />
         <SidebarButton icon={User} label="Account Information" isOpen={isOpen} onClick={() => router.push('/account')} active={pathname?.startsWith('/account') ?? false} />
         
         <div className="h-px bg-white/10 my-4"></div>
         
-        <SidebarButton icon={FacebookIcon} label="Connect Facebook" isOpen={isOpen} isSocialIcon onClick={() => {}} />
-        <SidebarButton icon={InstagramIcon} label="Connect Instagram" isOpen={isOpen} isSocialIcon onClick={() => {}} />
+        
       </nav>
 
       {/* Sign Out */}

@@ -68,12 +68,30 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
     ];
   };
 
-  // Handle image upload
+  // Handle image upload with size validation
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image too large. Please select an image under 10MB.');
+        return;
+      }
+      
       const reader = new FileReader();
-      reader.onload = (e) => setSelectedImage(e.target?.result as string);
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        console.log('Image loaded:', {
+          type: file.type,
+          size: file.size,
+          dataUrlLength: result?.length
+        });
+        setSelectedImage(result);
+      };
+      reader.onerror = (e) => {
+        console.error('Error reading file:', e);
+        alert('Error reading image file. Please try again.');
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -105,6 +123,15 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
   const handleSend = async () => {
     if (!message.trim() && !selectedImage) return;
 
+    // Capture current values before clearing
+    const currentMessage = message || 'Generate content based on the reference image';
+    const currentImage = selectedImage;
+    
+    // Clear inputs IMMEDIATELY so they don't show during loading
+    setMessage('');
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
     // Reset state
     setError(null);
     setContentPreview(null);
@@ -122,6 +149,14 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       setSessionId(session_id);
     }
 
+    // Log what we're sending
+    console.log('Sending request:', {
+      message: currentMessage,
+      contentType,
+      hasImage: !!currentImage,
+      imageLength: currentImage?.length
+    });
+
     // Start step progression animation
     const stepPromise = progressSteps(steps, () => {});
 
@@ -130,10 +165,12 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       const response = await generateContent({
         user_id: 'user_1',
         session_id,
-        message,
+        message: currentMessage,
         content_type: contentType,
-        image_data: selectedImage || undefined,
+        image_data: currentImage || undefined,
       });
+
+      console.log('API Response:', response);
 
       // Wait for animation to catch up
       await stepPromise;
@@ -156,11 +193,6 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       setError(err?.message || 'Network error');
       setViewState('error');
     }
-
-    // Clear inputs
-    setMessage('');
-    setSelectedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Handle approval
@@ -189,7 +221,144 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
     }
   };
 
-  // Handle denial (regenerate)
+  // Handle denial (regenerate with same prompt - Fresh Shuffle)
+  const handleFreshShuffle = async () => {
+    if (!contentPreview) return;
+
+    const originalPrompt = contentPreview.enhancedPrompt;
+    const originalContentType = contentPreview.contentType;
+
+    // Notify backend about denial
+    await approveContent({
+      user_id: 'user_1',
+      session_id: sessionIdRef.current!,
+      content_id: contentPreview.contentId,
+      approved: false,
+    });
+
+    // Clear preview and start regeneration
+    setContentPreview(null);
+    setError(null);
+    
+    // Initialize workflow
+    const steps = getWorkflowSteps(originalContentType);
+    setWorkflowSteps(steps);
+    setCurrentStepIndex(0);
+    setViewState('loading');
+
+    // Get or create session
+    let session_id = sessionIdRef.current;
+    if (!session_id) {
+      session_id = generateSessionId();
+      setSessionId(session_id);
+    }
+
+    // Start step progression animation
+    const stepPromise = progressSteps(steps, () => {});
+
+    // Make API call with the SAME prompt for a fresh variation
+    try {
+      const response = await generateContent({
+        user_id: 'user_1',
+        session_id,
+        message: originalPrompt,
+        content_type: originalContentType,
+        image_data: undefined,
+      });
+
+      // Wait for animation to catch up
+      await stepPromise;
+
+      if (response.status === 'error') {
+        setError(response.error || 'Generation failed');
+        setViewState('error');
+      } else if (response.status === 'preview') {
+        setContentPreview({
+          contentId: response.content_id!,
+          mediaUrl: response.generated_media_url!,
+          caption: response.caption!,
+          hashtags: response.hashtags!,
+          enhancedPrompt: response.enhanced_prompt!,
+          contentType: originalContentType,
+        });
+        setViewState('preview');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Network error');
+      setViewState('error');
+    }
+  };
+
+  // Handle regenerate with refined prompt
+  const handleRegenerateWithPrompt = async (newPrompt: string) => {
+    if (!contentPreview) return;
+
+    const originalContentType = contentPreview.contentType;
+
+    // Notify backend about denial
+    await approveContent({
+      user_id: 'user_1',
+      session_id: sessionIdRef.current!,
+      content_id: contentPreview.contentId,
+      approved: false,
+    });
+
+    // Clear preview and start regeneration
+    setContentPreview(null);
+    setError(null);
+    
+    // Initialize workflow
+    const steps = getWorkflowSteps(originalContentType);
+    setWorkflowSteps(steps);
+    setCurrentStepIndex(0);
+    setViewState('loading');
+
+    // Get or create session
+    let session_id = sessionIdRef.current;
+    if (!session_id) {
+      session_id = generateSessionId();
+      setSessionId(session_id);
+    }
+
+    // Start step progression animation
+    const stepPromise = progressSteps(steps, () => {});
+
+    // Make API call with the REFINED prompt
+    try {
+      console.log('Regenerating with refined prompt:', newPrompt);
+      
+      const response = await generateContent({
+        user_id: 'user_1',
+        session_id,
+        message: newPrompt,
+        content_type: originalContentType,
+        image_data: undefined,
+      });
+
+      // Wait for animation to catch up
+      await stepPromise;
+
+      if (response.status === 'error') {
+        setError(response.error || 'Generation failed');
+        setViewState('error');
+      } else if (response.status === 'preview') {
+        setContentPreview({
+          contentId: response.content_id!,
+          mediaUrl: response.generated_media_url!,
+          caption: response.caption!,
+          hashtags: response.hashtags!,
+          enhancedPrompt: response.enhanced_prompt!,
+          contentType: originalContentType,
+        });
+        setViewState('preview');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Network error');
+      setViewState('error');
+    }
+  };
+
+  // Handle simple denial (just go back to welcome)
   const handleDeny = async () => {
     if (!contentPreview) return;
 
@@ -233,7 +402,8 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
           <PreviewCard
             preview={contentPreview}
             onApprove={handleApprove}
-            onDeny={handleDeny}
+            onFreshShuffle={handleFreshShuffle}
+            onRegenerateWithPrompt={handleRegenerateWithPrompt}
           />
         );
       
@@ -275,20 +445,51 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
       {/* Input Area */}
       <div className="p-6 pb-8">
         <div className="max-w-3xl mx-auto">
-          {/* Image Preview */}
+          {/* Reference Image Preview - Animated Card */}
           {selectedImage && (
-            <div className="mb-4 relative inline-block">
-              <img 
-                src={selectedImage} 
-                alt="Reference" 
-                className="max-w-xs max-h-32 rounded-lg border border-white/20"
-              />
-              <button
-                onClick={removeImage}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-              >
-                <X size={14} />
-              </button>
+            <div className="mb-4 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="inline-flex items-start gap-3 p-3 bg-gradient-to-r from-[#1c1c1c] to-[#232323] rounded-2xl border border-white/10 shadow-xl backdrop-blur-sm">
+                {/* Image Container with Glow Effect */}
+                <div className="relative group">
+                  {/* Animated gradient border */}
+                  <div className="absolute -inset-1 bg-gradient-to-r from-[#3ECF8E] via-purple-500 to-pink-500 rounded-xl opacity-50 group-hover:opacity-75 blur-sm transition-opacity duration-300 animate-pulse"></div>
+                  
+                  {/* Image */}
+                  <div className="relative">
+                    <img 
+                      src={selectedImage} 
+                      alt="Reference" 
+                      className="w-24 h-24 object-cover rounded-xl border-2 border-[#232323]"
+                    />
+                    {/* Overlay on hover */}
+                    <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                      <ImageIcon size={20} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Info Section */}
+                <div className="flex flex-col justify-between py-1 min-w-[140px]">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-[#3ECF8E] animate-pulse"></div>
+                      <span className="text-xs font-medium text-[#3ECF8E]">Reference Image</span>
+                    </div>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      AI will analyze this image and match its style
+                    </p>
+                  </div>
+                  
+                  {/* Remove Button */}
+                  <button
+                    onClick={removeImage}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 transition-colors group/btn"
+                  >
+                    <X size={12} className="group-hover/btn:rotate-90 transition-transform duration-200" />
+                    <span>Remove</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           
@@ -374,13 +575,16 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
 interface PreviewCardProps {
   preview: ContentPreview;
   onApprove: () => void;
-  onDeny: () => void;
+  onFreshShuffle: () => void;
+  onRegenerateWithPrompt: (newPrompt: string) => void;
 }
 
-function PreviewCard({ preview, onApprove, onDeny }: PreviewCardProps) {
+function PreviewCard({ preview, onApprove, onFreshShuffle, onRegenerateWithPrompt }: PreviewCardProps) {
   const isReel = preview.contentType === 'Reel';
   const [videoError, setVideoError] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
+  const [refinedPrompt, setRefinedPrompt] = useState(preview.enhancedPrompt);
   
   // Check if media is a video format - be more explicit
   const mediaUrl = preview.mediaUrl || '';
@@ -403,134 +607,226 @@ function PreviewCard({ preview, onApprove, onDeny }: PreviewCardProps) {
   const shouldShowVideo = isVideoFormat && !videoError;
   const isImageFallback = isReel && !isVideoFormat;
 
+  const handleRegenerateClick = () => {
+    setShowRegenerateModal(true);
+  };
+
+  const handleFreshShuffleClick = () => {
+    setShowRegenerateModal(false);
+    onFreshShuffle();
+  };
+
+  const handleRefineAndGenerate = () => {
+    setShowRegenerateModal(false);
+    onRegenerateWithPrompt(refinedPrompt);
+  };
+
   return (
-    <div className="w-full max-w-lg mx-auto">
-      <div className="rounded-2xl border border-white/10 bg-[#1c1c1c] overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center p-[2px]">
-              <div className="w-full h-full rounded-full bg-[#1c1c1c] flex items-center justify-center">
-                <InstagramIcon className="w-5 h-5 text-white" />
+    <>
+      <div className="w-full max-w-lg mx-auto">
+        <div className="rounded-2xl border border-white/10 bg-[#1c1c1c] overflow-hidden shadow-2xl">
+          {/* Header */}
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center p-[2px]">
+                <div className="w-full h-full rounded-full bg-[#1c1c1c] flex items-center justify-center">
+                  <InstagramIcon className="w-5 h-5 text-white" />
+                </div>
+              </div>
+              <div>
+                <span className="text-white font-semibold block">Preview</span>
+                <span className="text-xs text-gray-400">{isReel ? 'Instagram Reel' : 'Instagram Post'}</span>
               </div>
             </div>
-            <div>
-              <span className="text-white font-semibold block">Preview</span>
-              <span className="text-xs text-gray-400">{isReel ? 'Instagram Reel' : 'Instagram Post'}</span>
-            </div>
+            <span className={`text-xs px-3 py-1 rounded-full font-medium ${isReel ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+              {isReel ? '🎬 Reel' : '📷 Post'}
+            </span>
           </div>
-          <span className={`text-xs px-3 py-1 rounded-full font-medium ${isReel ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
-            {isReel ? '🎬 Reel' : '📷 Post'}
-          </span>
-        </div>
-        
-        {/* Media Preview - Different aspect ratios for Post vs Reel */}
-        <div className={`relative bg-black flex items-center justify-center overflow-hidden ${isReel ? 'aspect-[9/16]' : 'aspect-square'}`}>
-          {shouldShowVideo ? (
-            <video 
+          
+          {/* Media Preview - Different aspect ratios for Post vs Reel */}
+          <div className={`relative bg-black flex items-center justify-center overflow-hidden ${isReel ? 'aspect-[9/16]' : 'aspect-square'}`}>
+            {shouldShowVideo ? (
+              <video 
+                  src={mediaUrl} 
+                  className="w-full h-full object-contain bg-black"
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  onError={(e) => {
+                    console.error('Video error:', e);
+                    setVideoError(true);
+                  }}
+                  onLoadedData={() => {
+                    console.log('Video loaded successfully');
+                    setVideoLoaded(true);
+                  }}
+                />
+            ) : mediaUrl && !isVideoFormat ? (
+              <img 
                 src={mediaUrl} 
-                className="w-full h-full object-contain bg-black"
-                controls
-                autoPlay
-                muted
-                loop
-                playsInline
-                onError={(e) => {
-                  console.error('Video error:', e);
-                  setVideoError(true);
-                }}
-                onLoadedData={() => {
-                  console.log('Video loaded successfully');
-                  setVideoLoaded(true);
-                }}
+                alt="Generated content" 
+                className="w-full h-full object-contain"
               />
-          ) : mediaUrl && !isVideoFormat ? (
-            <img 
-              src={mediaUrl} 
-              alt="Generated content" 
-              className="w-full h-full object-contain"
-            />
-          ) : videoError ? (
-            <div className="flex flex-col items-center gap-4 text-gray-500 p-8">
-              <Film size={48} />
-              <span className="text-sm">Video failed to load</span>
-              <span className="text-xs text-gray-600">Video will still be published</span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-4 text-gray-500 p-8">
-              {isReel ? <Film size={48} /> : <ImageIcon size={48} />}
-              <span className="text-sm">Preview not available</span>
-            </div>
-          )}
-          
-          {/* Video loading indicator */}
-          {shouldShowVideo && !videoLoaded && !videoError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <div className="w-8 h-8 border-2 border-[#3ECF8E] border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )}
-          
-          {/* Reel indicator overlay */}
-          {isReel && (
-            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg text-xs text-white flex items-center gap-1">
-              <Film size={12} /> Reel
-            </div>
-          )}
-          
-          {/* Image fallback notice for Reels */}
-          {isImageFallback && (
-            <div className="absolute top-3 left-3 bg-amber-500/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs text-black font-medium">
-              ⚠️ Video preview as image
-            </div>
-          )}
-          
-          {/* Video error fallback */}
-          {videoError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white">
-              <Film size={48} className="mb-2 text-gray-400" />
-              <p className="text-sm text-gray-400">Video preview unavailable</p>
-              <p className="text-xs text-gray-500 mt-1">Video will be uploaded when approved</p>
-            </div>
-          )}
-        </div>
-        
-        {/* Caption & Hashtags */}
-        <div className="p-4 space-y-3">
-          <div>
-            <p className="text-xs text-gray-500 mb-1 font-medium">Caption</p>
-            <p className="text-white text-sm leading-relaxed">{preview.caption}</p>
+            ) : videoError ? (
+              <div className="flex flex-col items-center gap-4 text-gray-500 p-8">
+                <Film size={48} />
+                <span className="text-sm">Video failed to load</span>
+                <span className="text-xs text-gray-600">Video will still be published</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4 text-gray-500 p-8">
+                {isReel ? <Film size={48} /> : <ImageIcon size={48} />}
+                <span className="text-sm">Preview not available</span>
+              </div>
+            )}
+            
+            {/* Video loading indicator */}
+            {shouldShowVideo && !videoLoaded && !videoError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <div className="w-8 h-8 border-2 border-[#3ECF8E] border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+            
+            {/* Reel indicator overlay */}
+            {isReel && (
+              <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg text-xs text-white flex items-center gap-1">
+                <Film size={12} /> Reel
+              </div>
+            )}
+            
+            {/* Image fallback notice for Reels */}
+            {isImageFallback && (
+              <div className="absolute top-3 left-3 bg-amber-500/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs text-black font-medium">
+                ⚠️ Video preview as image
+              </div>
+            )}
+            
+            {/* Video error fallback */}
+            {videoError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white">
+                <Film size={48} className="mb-2 text-gray-400" />
+                <p className="text-sm text-gray-400">Video preview unavailable</p>
+                <p className="text-xs text-gray-500 mt-1">Video will be uploaded when approved</p>
+              </div>
+            )}
           </div>
           
-          <div>
-            <p className="text-xs text-gray-500 mb-1 font-medium">Hashtags</p>
-            <p className="text-[#3ECF8E] text-sm leading-relaxed">{preview.hashtags}</p>
+          {/* Caption & Hashtags */}
+          <div className="p-4 space-y-3">
+            <div>
+              <p className="text-xs text-gray-500 mb-1 font-medium">Caption</p>
+              <p className="text-white text-sm leading-relaxed">{preview.caption}</p>
+            </div>
+            
+            <div>
+              <p className="text-xs text-gray-500 mb-1 font-medium">Hashtags</p>
+              <p className="text-[#3ECF8E] text-sm leading-relaxed">{preview.hashtags}</p>
+            </div>
+            
+            <details className="pt-2 border-t border-white/10">
+              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">View enhanced prompt</summary>
+              <p className="text-gray-400 text-xs italic mt-2 leading-relaxed">{preview.enhancedPrompt}</p>
+            </details>
           </div>
           
-          <details className="pt-2 border-t border-white/10">
-            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">View enhanced prompt</summary>
-            <p className="text-gray-400 text-xs italic mt-2 leading-relaxed">{preview.enhancedPrompt}</p>
-          </details>
-        </div>
-        
-        {/* Action Buttons */}
-        <div className="p-4 border-t border-white/10 flex gap-3">
-          <button
-            onClick={onDeny}
-            className="flex-1 py-3 bg-[#232323] text-gray-300 rounded-lg font-medium hover:bg-[#2a2a2a] transition-colors flex items-center justify-center gap-2"
-          >
-            <RefreshCw size={18} />
-            Regenerate
-          </button>
-          <button
-            onClick={onApprove}
-            className="flex-1 py-3 bg-[#3ECF8E] text-[#121212] rounded-lg font-bold hover:bg-[#34b27b] transition-colors flex items-center justify-center gap-2"
-          >
-            <ThumbsUp size={18} />
-            Approve & Post
-          </button>
+          {/* Action Buttons */}
+          <div className="p-4 border-t border-white/10 flex gap-3">
+            <button
+              onClick={handleRegenerateClick}
+              className="flex-1 py-3 bg-[#232323] text-gray-300 rounded-lg font-medium hover:bg-[#2a2a2a] transition-colors flex items-center justify-center gap-2"
+            >
+              <RefreshCw size={18} />
+              Regenerate
+            </button>
+            <button
+              onClick={onApprove}
+              className="flex-1 py-3 bg-[#3ECF8E] text-[#121212] rounded-lg font-bold hover:bg-[#34b27b] transition-colors flex items-center justify-center gap-2"
+            >
+              <ThumbsUp size={18} />
+              Approve & Post
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Regenerate Options Modal */}
+      {showRegenerateModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1c1c1c] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Regenerate Content</h3>
+              <button 
+                onClick={() => setShowRegenerateModal(false)}
+                className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 space-y-4">
+              {/* Option 1: Fresh Shuffle */}
+              <button
+                onClick={handleFreshShuffleClick}
+                className="w-full p-4 bg-[#232323] hover:bg-[#2a2a2a] border border-white/10 hover:border-[#3ECF8E]/50 rounded-xl transition-all text-left group"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/30 transition-colors">
+                    <RefreshCw size={20} className="text-purple-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">Fresh Shuffle</h4>
+                    <p className="text-sm text-gray-400">Generate a completely new variation using the same prompt. Great for exploring different creative directions.</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Option 2: Refine & Generate */}
+              <div className="p-4 bg-[#232323] border border-white/10 rounded-xl">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <Send size={20} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">Refine & Generate</h4>
+                    <p className="text-sm text-gray-400">Modify your prompt to get more specific results.</p>
+                  </div>
+                </div>
+                
+                <textarea
+                  value={refinedPrompt}
+                  onChange={(e) => setRefinedPrompt(e.target.value)}
+                  className="w-full h-24 bg-[#1a1a1a] border border-white/10 rounded-lg p-3 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-[#3ECF8E]/50 transition-colors"
+                  placeholder="Refine your prompt..."
+                />
+                
+                <button
+                  onClick={handleRefineAndGenerate}
+                  disabled={!refinedPrompt.trim()}
+                  className="mt-3 w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Send size={16} />
+                  Generate with Refined Prompt
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10">
+              <button
+                onClick={() => setShowRegenerateModal(false)}
+                className="w-full py-2.5 text-gray-400 hover:text-white transition-colors text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
