@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from 'react';
-import { KestraIcon, VercelIcon, GoogleGeminiIcon, FacebookIcon, InstagramIcon, ImagekitIcon } from './icons/SocialIcons';
+import {  VercelIcon, GoogleGeminiIcon, FacebookIcon, InstagramIcon, ImagekitIcon } from './icons/SocialIcons';
 import { motion } from 'motion/react';
 
 const brands = [
-  { name: 'Kestra', icon: KestraIcon },
   { name: 'Vercel', icon: VercelIcon },
   { name: 'Google Gemini', icon: GoogleGeminiIcon },
   { name: 'Facebook', icon: FacebookIcon },

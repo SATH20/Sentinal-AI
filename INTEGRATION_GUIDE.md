@@ -87,7 +87,7 @@ setMessages(prev => [...prev, agentMessage]);
 cd sentinalai/backend
 python start_server.py
 ```
-Server runs on: http://localhost:8000
+Server runs on: http://localhost:8080
 
 ### Frontend
 ```bash
