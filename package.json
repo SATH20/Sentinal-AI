@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@codesandbox/sandpack-react": "^2.20.0",
     "@google/adk": "^0.2.1",
+    "@supabase/supabase-js": "^2.89.0",
     "@tabler/icons-react": "^3.36.0",
     "@vercel/analytics": "^1.6.1",
     "axios": "^1.13.2",
@@ -20,6 +22,7 @@
     "next": "^16.0.10",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
