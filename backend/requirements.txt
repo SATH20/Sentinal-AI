@@ -1,0 +1,11 @@
+google-adk
+google-genai
+boto3
+requests
+python-dotenv
+fastapi
+uvicorn[standard]
+supabase
+pytrends
+pandas
+httpx
