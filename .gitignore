@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentation (hide internal docs, keep README.md visible)
+DEPLOYMENT.md
+INTEGRATION_GUIDE.md
+*.md
+!README.md
