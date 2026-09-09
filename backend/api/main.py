@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -26,7 +32,15 @@ from google.genai import types
 # --- ADD THIS INITIALIZATION ---
 session_service = InMemorySessionService()
 # Initialize Gemini client
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+gemini_key = os.environ.get("GEMINI_API_KEY")
+client = None
+if gemini_key:
+    try:
+        client = genai.Client(api_key=gemini_key)
+    except Exception as e:
+        print(f"Warning: Could not initialize Gemini client: {e}")
+else:
+    print("Warning: GEMINI_API_KEY not configured. Content generation endpoints will require an API key.")
 
 # Initialize Supabase client for Brand DNA retrieval
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
