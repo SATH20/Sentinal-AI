@@ -47,7 +47,7 @@ export default function ChatArea({ sidebarOpen }: ChatAreaProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const username = 'Khushal Agarwal';
+  const username = 'Sathvik Rajavarapu';
 
   // Get workflow steps based on content type
   const getWorkflowSteps = (type: 'Post' | 'Reel'): WorkflowStep[] => {

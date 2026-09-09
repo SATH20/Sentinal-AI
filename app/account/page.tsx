@@ -10,8 +10,8 @@ export default function AccountPage() {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: 'Khushal',
-    lastName: 'Agarwal',
+    firstName: 'Sathvik',
+    lastName: 'Rajavarapu',
     username: 'anamikaaradhya02',
     accountType: 'Digital Creator',
     systemPrompt: 'You are a social media manager for a digital creator focused on shopping and casual. Your goal is to grow their audience and drive engagement. Create post ideas, draft captions, and respond to comments in a witty, insightful, encouraging tone.',
