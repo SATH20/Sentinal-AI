@@ -1,3 +1,8 @@
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import os
 import json
 import time
@@ -16,13 +21,20 @@ load_dotenv()
 # =========================================================
 
 # Cloudflare R2 Client (SentinalAI)
-r2_client = boto3.client(
-    service_name="s3",
-    region_name="auto",
-    endpoint_url=f"https://{os.environ.get('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
-    aws_access_key_id=os.environ.get("R2_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.environ.get("R2_SECRET_ACCESS_KEY")
-)
+r2_account_id = os.environ.get("R2_ACCOUNT_ID")
+r2_access_key = os.environ.get("R2_ACCESS_KEY_ID")
+r2_secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
+
+if r2_account_id and r2_access_key and r2_secret_key:
+    r2_client = boto3.client(
+        service_name="s3",
+        region_name="auto",
+        endpoint_url=f"https://{r2_account_id}.r2.cloudflarestorage.com",
+        aws_access_key_id=r2_access_key,
+        aws_secret_access_key=r2_secret_key
+    )
+else:
+    r2_client = None
 
 # Supabase Client (Sento Features)
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
