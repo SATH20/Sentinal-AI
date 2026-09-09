@@ -45,3 +45,11 @@ DEPLOYMENT.md
 INTEGRATION_GUIDE.md
 *.md
 !README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+backend/.venv/
+
